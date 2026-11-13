@@ -34,7 +34,10 @@ data class LogEntry(
  * High-performance, memory-buffered structured logger for ZARA AI.
  */
 @Singleton
-class ZaraLogger @Inject constructor() {
+class ZaraLogger(private val defaultTag: String = "ZaraAI") {
+
+    @Inject
+    constructor() : this("ZaraAI")
 
     private val maxBufferCapacity = 200
     private val bufferQueue = ConcurrentLinkedQueue<LogEntry>()
@@ -42,6 +45,13 @@ class ZaraLogger @Inject constructor() {
     val logsState: StateFlow<List<LogEntry>> = _logsState.asStateFlow()
 
     private val isLoggingActive: Boolean = BuildConfig.DEBUG || BuildConfig.LOGGING_ENABLED
+
+    fun v(message: String) = v(defaultTag, message)
+    fun d(message: String) = d(defaultTag, message)
+    fun i(message: String) = i(defaultTag, message)
+    fun w(message: String, throwable: Throwable? = null) = w(defaultTag, message, throwable)
+    fun e(message: String, throwable: Throwable? = null) = e(defaultTag, message, throwable)
+    fun agent(message: String) = agent(defaultTag, message)
 
     fun v(tag: String, message: String) {
         if (!isLoggingActive) return

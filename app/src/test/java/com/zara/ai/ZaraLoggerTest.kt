@@ -28,4 +28,15 @@ class ZaraLoggerTest {
 
         assertTrue(logger.logsState.value.isEmpty())
     }
+
+    @Test
+    fun `single argument log overloads use custom tag`() {
+        val logger = ZaraLogger("CustomVoiceTag")
+        logger.d("Custom message without explicit tag")
+
+        val logs = logger.logsState.value
+        assertEquals(1, logs.size)
+        assertEquals("CustomVoiceTag", logs.first().tag)
+        assertEquals("Custom message without explicit tag", logs.first().message)
+    }
 }
