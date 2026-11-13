@@ -94,7 +94,7 @@ class GeminiRealtimeVoiceProvider @Inject constructor(
         }
     }
 
-    override suspend fun disconnect() = withContext(ioDispatcher) {
+    override suspend fun disconnect(): Unit = withContext(ioDispatcher) {
         logger.d("Disconnecting Gemini Live session")
         try {
             webSocket?.close(1000, "Session closed normally by client")

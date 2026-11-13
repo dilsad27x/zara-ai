@@ -2,6 +2,8 @@ package com.zara.ai.core.voice.engine
 
 import com.zara.ai.ai.engine.conversation.ConversationManager
 import com.zara.ai.ai.engine.gateway.AIGateway
+import com.zara.ai.ai.engine.gateway.GatewayEvent
+import com.zara.ai.core.database.entity.MessageRole
 import com.zara.ai.core.common.dispatcher.Dispatcher
 import com.zara.ai.core.common.dispatcher.ZaraDispatchers
 import com.zara.ai.core.common.logger.ZaraLogger
@@ -275,17 +277,31 @@ class VoiceEngine @Inject constructor(
                 _sessionState.value = VoiceSessionState.SPEAKING
 
                 val responseBuilder = StringBuilder()
+                val convId = activeSessionId ?: conversationManager.createNewConversation("Voice Conversation").also {
+                    activeSessionId = it
+                }
 
-                aiGateway.streamChat(
-                    message = userQuery,
-                    systemInstruction = systemPrompt
-                ).collect { chunk ->
-                    val text = chunk.text
-                    if (text.isNotEmpty()) {
-                        responseBuilder.append(text)
-                        _assistantResponse.value = responseBuilder.toString()
-                        _events.tryEmit(VoiceEvent.AssistantTranscriptChunk(text))
-                        ttsManager.appendStreamChunk(text)
+                aiGateway.processConversationStream(
+                    conversationId = convId,
+                    prompt = userQuery
+                ).collect { event ->
+                    when (event) {
+                        is GatewayEvent.TextChunk -> {
+                            val text = event.text
+                            if (text.isNotEmpty()) {
+                                responseBuilder.append(text)
+                                _assistantResponse.value = responseBuilder.toString()
+                                _events.tryEmit(VoiceEvent.AssistantTranscriptChunk(text))
+                                ttsManager.appendStreamChunk(text)
+                            }
+                        }
+                        is GatewayEvent.Finished -> {
+                            ttsManager.finishStream()
+                        }
+                        is GatewayEvent.Error -> {
+                            _events.tryEmit(VoiceEvent.Error(event.message))
+                        }
+                        else -> {}
                     }
                 }
 
@@ -377,12 +393,11 @@ class VoiceEngine @Inject constructor(
 
     private suspend fun saveVoiceTurnToMemory(userText: String, assistantText: String) {
         try {
-            if (activeSessionId == null) {
-                activeSessionId = conversationManager.createSession("Voice Conversation").getOrNull()
+            val convId = activeSessionId ?: conversationManager.createNewConversation("Voice Conversation").also {
+                activeSessionId = it
             }
-            val sessionId = activeSessionId ?: return
-            conversationManager.addUserMessage(sessionId, userText)
-            conversationManager.addAssistantMessage(sessionId, assistantText)
+            conversationManager.saveMessage(convId, MessageRole.USER, userText)
+            conversationManager.saveMessage(convId, MessageRole.ASSISTANT, assistantText)
         } catch (e: Exception) {
             logger.w("Failed to persist voice turn to Room database: ${e.message}")
         }
