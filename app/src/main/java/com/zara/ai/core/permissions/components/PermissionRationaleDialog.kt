@@ -31,7 +31,7 @@ fun PermissionRationaleDialog(
             Text(text = permission.title, style = MaterialTheme.typography.titleLarge)
         },
         text = {
-            Text(text = permission.rationale, style = MaterialTheme.typography.bodyMedium)
+            Text(text = permission.description, style = MaterialTheme.typography.bodyMedium)
         },
         confirmButton = {
             ZaraButton(
