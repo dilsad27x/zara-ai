@@ -2,9 +2,11 @@ package com.zara.ai.features.voice
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.zara.ai.core.designsystem.components.OrbState
 import com.zara.ai.core.permissions.PermissionManager
 import com.zara.ai.core.permissions.model.ZaraPermission
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -12,52 +14,132 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-enum class VoiceState {
-    IDLE, LISTENING, PROCESSING, SPEAKING
+enum class VoiceAssistantState {
+    IDLE,
+    LISTENING,
+    PROCESSING,
+    SPEAKING,
+    PAUSED,
+    ERROR
 }
+
+data class VoiceUiState(
+    val state: VoiceAssistantState = VoiceAssistantState.IDLE,
+    val orbState: OrbState = OrbState.IDLE,
+    val userTranscript: String = "",
+    val assistantTranscript: String = "Tap microphone to begin voice interaction",
+    val isMuted: Boolean = false,
+    val simulatedAudioLevel: Float = 0.0f,
+    val permissionGranted: Boolean = true
+)
 
 @HiltViewModel
 class VoiceViewModel @Inject constructor(
     private val permissionManager: PermissionManager
 ) : ViewModel() {
 
-    private val _voiceState = MutableStateFlow(VoiceState.IDLE)
-    val voiceState: StateFlow<VoiceState> = _voiceState.asStateFlow()
+    private val _uiState = MutableStateFlow(VoiceUiState())
+    val uiState: StateFlow<VoiceUiState> = _uiState.asStateFlow()
 
-    private val _transcript = MutableStateFlow("Tap the microphone to speak with ZARA...")
-    val transcript: StateFlow<String> = _transcript.asStateFlow()
+    private var voiceCycleJob: Job? = null
 
-    fun toggleListening() {
-        if (_voiceState.value == VoiceState.LISTENING) {
-            stopListening()
-        } else {
-            startListening()
-        }
+    init {
+        checkPermission()
     }
 
-    private fun startListening() {
-        if (!permissionManager.isPermissionGranted(ZaraPermission.RECORD_AUDIO)) {
-            _transcript.value = "Microphone permission is required for voice interaction."
+    fun checkPermission() {
+        val granted = permissionManager.isPermissionGranted(ZaraPermission.RECORD_AUDIO)
+        _uiState.value = _uiState.value.copy(permissionGranted = granted)
+    }
+
+    fun toggleListening() {
+        if (!_uiState.value.permissionGranted) {
+            _uiState.value = _uiState.value.copy(
+                assistantTranscript = "Microphone permission is required to capture voice input."
+            )
             return
         }
 
-        _voiceState.value = VoiceState.LISTENING
-        _transcript.value = "Listening to your voice..."
+        if (_uiState.value.state == VoiceAssistantState.LISTENING) {
+            stopListening()
+        } else {
+            startVoiceCycle()
+        }
+    }
 
-        viewModelScope.launch {
-            delay(2500)
-            _voiceState.value = VoiceState.PROCESSING
-            _transcript.value = "Analyzing acoustic tokens & semantic intent..."
+    fun toggleMute() {
+        val newMute = !_uiState.value.isMuted
+        _uiState.value = _uiState.value.copy(
+            isMuted = newMute,
+            orbState = if (newMute) OrbState.PAUSED else OrbState.LISTENING
+        )
+    }
+
+    fun interruptAssistant() {
+        voiceCycleJob?.cancel()
+        _uiState.value = _uiState.value.copy(
+            state = VoiceAssistantState.IDLE,
+            orbState = OrbState.IDLE,
+            assistantTranscript = "Assistant speech interrupted."
+        )
+    }
+
+    fun endConversation(onNavigateBack: () -> Unit) {
+        interruptAssistant()
+        onNavigateBack()
+    }
+
+    private fun startVoiceCycle() {
+        voiceCycleJob?.cancel()
+        voiceCycleJob = viewModelScope.launch {
+            // 1. Listening phase
+            _uiState.value = _uiState.value.copy(
+                state = VoiceAssistantState.LISTENING,
+                orbState = OrbState.LISTENING,
+                userTranscript = "Listening to your voice...",
+                assistantTranscript = "",
+                simulatedAudioLevel = 0.65f
+            )
+
+            delay(2800)
+
+            // 2. Processing phase
+            _uiState.value = _uiState.value.copy(
+                state = VoiceAssistantState.PROCESSING,
+                orbState = OrbState.PROCESSING,
+                userTranscript = "\"What are the active autonomous tasks?\"",
+                assistantTranscript = "Synthesizing response...",
+                simulatedAudioLevel = 0.0f
+            )
+
             delay(1200)
-            _voiceState.value = VoiceState.SPEAKING
-            _transcript.value = "\"I hear you clearly! I am ready to perform your commands or answer questions.\""
-            delay(3000)
-            _voiceState.value = VoiceState.IDLE
+
+            // 3. Speaking phase
+            _uiState.value = _uiState.value.copy(
+                state = VoiceAssistantState.SPEAKING,
+                orbState = OrbState.SPEAKING,
+                assistantTranscript = "All systems are operational. The agent engine and memory database are active.",
+                simulatedAudioLevel = 0.85f
+            )
+
+            delay(3500)
+
+            // 4. Return to Idle
+            _uiState.value = _uiState.value.copy(
+                state = VoiceAssistantState.IDLE,
+                orbState = OrbState.IDLE,
+                simulatedAudioLevel = 0.0f
+            )
         }
     }
 
     private fun stopListening() {
-        _voiceState.value = VoiceState.IDLE
-        _transcript.value = "Voice session paused."
+        voiceCycleJob?.cancel()
+        _uiState.value = _uiState.value.copy(
+            state = VoiceAssistantState.IDLE,
+            orbState = OrbState.IDLE,
+            simulatedAudioLevel = 0.0f,
+            assistantTranscript = "Voice session paused."
+        )
     }
 }

@@ -4,7 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.zara.ai.core.common.dispatcher.Dispatcher
 import com.zara.ai.core.common.dispatcher.ZaraDispatchers
+import com.zara.ai.core.database.dao.ConversationDao
 import com.zara.ai.core.database.dao.MemoryDao
+import com.zara.ai.core.database.dao.MessageDao
 import com.zara.ai.core.database.entity.MemoryCategory
 import com.zara.ai.core.database.entity.MemoryEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -13,14 +15,23 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+data class MemoryStats(
+    val shortTermContextCount: Int = 0,
+    val longTermMemoryCount: Int = 0,
+    val factCount: Int = 0,
+    val preferenceCount: Int = 0
+)
+
 @HiltViewModel
 class MemoryViewModel @Inject constructor(
     private val memoryDao: MemoryDao,
+    private val messageDao: MessageDao,
     @Dispatcher(ZaraDispatchers.IO) private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel() {
 
@@ -30,51 +41,40 @@ class MemoryViewModel @Inject constructor(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    val memories: StateFlow<List<MemoryEntity>> = _selectedCategory
-        .flatMapLatest { category ->
-            if (category != null) {
-                memoryDao.getMemoriesByCategory(category)
-            } else {
-                memoryDao.getAllMemories()
-            }
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    private val _autoExtractEnabled = MutableStateFlow(true)
+    val autoExtractEnabled: StateFlow<Boolean> = _autoExtractEnabled.asStateFlow()
 
-    init {
-        seedInitialMemories()
-    }
-
-    private fun seedInitialMemories() {
-        viewModelScope.launch(ioDispatcher) {
-            val existing = memoryDao.getMemoryByKey("ai_identity")
-            if (existing == null) {
-                memoryDao.insertMemory(
-                    MemoryEntity(
-                        key = "ai_identity",
-                        value = "ZARA: Autonomous Native Android Cognitive Assistant",
-                        category = MemoryCategory.IDENTITY
-                    )
-                )
-                memoryDao.insertMemory(
-                    MemoryEntity(
-                        key = "preferred_architecture",
-                        value = "Jetpack Compose + Material 3 + Room + Hilt",
-                        category = MemoryCategory.RULE
-                    )
-                )
-                memoryDao.insertMemory(
-                    MemoryEntity(
-                        key = "security_protocol",
-                        value = "Hardware Keystore AES-256 GCM encrypted",
-                        category = MemoryCategory.SYSTEM_CAPABILITY
-                    )
-                )
-            }
+    val memories: StateFlow<List<MemoryEntity>> = combine(
+        _selectedCategory.flatMapLatest { cat ->
+            if (cat != null) memoryDao.getMemoriesByCategory(cat) else memoryDao.getAllMemories()
+        },
+        _searchQuery
+    ) { list, query ->
+        if (query.isBlank()) list
+        else list.filter {
+            it.key.contains(query, ignoreCase = true) || it.value.contains(query, ignoreCase = true)
         }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val memoryStats: StateFlow<MemoryStats> = memoryDao.getAllMemories().combine(messageDao.getTotalMessageCount()) { memList, msgCount ->
+        MemoryStats(
+            shortTermContextCount = msgCount,
+            longTermMemoryCount = memList.size,
+            factCount = memList.count { it.category == MemoryCategory.FACT },
+            preferenceCount = memList.count { it.category == MemoryCategory.PREFERENCE }
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), MemoryStats())
+
+    fun setSearchQuery(query: String) {
+        _searchQuery.value = query
     }
 
     fun setCategory(category: MemoryCategory?) {
         _selectedCategory.value = category
+    }
+
+    fun toggleAutoExtract() {
+        _autoExtractEnabled.value = !_autoExtractEnabled.value
     }
 
     fun addMemory(key: String, value: String, category: MemoryCategory) {
@@ -93,6 +93,12 @@ class MemoryViewModel @Inject constructor(
     fun deleteMemory(id: String) {
         viewModelScope.launch(ioDispatcher) {
             memoryDao.deleteMemoryById(id)
+        }
+    }
+
+    fun clearShortTermConversationMemory() {
+        viewModelScope.launch(ioDispatcher) {
+            messageDao.deleteMessagesByConversationId("default_chat")
         }
     }
 }

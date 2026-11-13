@@ -14,22 +14,24 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.zara.ai.core.designsystem.theme.ZaraCyan
-import com.zara.ai.core.designsystem.theme.ZaraPurple
+import com.zara.ai.core.designsystem.theme.ZaraBorder
+import com.zara.ai.core.designsystem.theme.ZaraElectricBlue
+import com.zara.ai.core.designsystem.theme.ZaraPrimaryAccent
+import com.zara.ai.core.designsystem.theme.ZaraSurface
 
 @Composable
 fun ZaraGlassmorphicSurface(
     modifier: Modifier = Modifier,
     shape: Shape = MaterialTheme.shapes.large,
-    backgroundColor: Color = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f),
+    backgroundColor: Color = ZaraSurface.copy(alpha = 0.85f),
     borderWidth: Dp = 1.dp,
     content: @Composable BoxScope.() -> Unit
 ) {
     val gradientBorder = Brush.linearGradient(
         colors = listOf(
-            ZaraCyan.copy(alpha = 0.5f),
-            ZaraPurple.copy(alpha = 0.3f),
-            Color.Transparent
+            ZaraPrimaryAccent.copy(alpha = 0.45f),
+            ZaraElectricBlue.copy(alpha = 0.25f),
+            ZaraBorder.copy(alpha = 0.60f)
         )
     )
 
