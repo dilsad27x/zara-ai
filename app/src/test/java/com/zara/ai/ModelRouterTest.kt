@@ -1,20 +1,20 @@
 package com.zara.ai
 
+import com.zara.ai.ai.engine.model.AIRequest
+import com.zara.ai.ai.engine.model.AIResponse
+import com.zara.ai.ai.engine.model.AIStreamChunk
+import com.zara.ai.ai.engine.model.ProviderHealth
+import com.zara.ai.ai.engine.provider.AIProvider
 import com.zara.ai.ai.engine.provider.AIProviderRegistry
-import com.zara.ai.ai.engine.provider.gemini.GeminiProvider
 import com.zara.ai.ai.engine.router.ModelRouter
-import com.zara.ai.ai.engine.tools.ToolRegistry
 import com.zara.ai.core.common.logger.ZaraLogger
-import com.zara.ai.core.security.SecurityManager
-import io.mockk.mockk
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
-@OptIn(ExperimentalCoroutinesApi::class)
 class ModelRouterTest {
 
     private lateinit var modelRouter: ModelRouter
@@ -23,12 +23,15 @@ class ModelRouterTest {
     @Before
     fun setUp() {
         val logger = ZaraLogger()
-        val securityManager = mockk<SecurityManager>(relaxed = true)
-        val toolRegistry = ToolRegistry(logger)
-        val testDispatcher = UnconfinedTestDispatcher()
-
-        val geminiProvider = GeminiProvider(securityManager, toolRegistry, logger, testDispatcher)
-        providerRegistry = AIProviderRegistry(geminiProvider, logger)
+        val fakeProvider = object : AIProvider {
+            override val name: String = "Google Gemini"
+            override suspend fun chat(request: AIRequest): Result<AIResponse> =
+                Result.success(AIResponse(text = "ok", finishReason = "STOP"))
+            override fun streamChat(request: AIRequest): Flow<AIStreamChunk> = emptyFlow()
+            override suspend fun checkHealth(): ProviderHealth =
+                ProviderHealth(isHealthy = true, latencyMs = 10L)
+        }
+        providerRegistry = AIProviderRegistry(fakeProvider, logger)
         modelRouter = ModelRouter(providerRegistry, logger)
     }
 
