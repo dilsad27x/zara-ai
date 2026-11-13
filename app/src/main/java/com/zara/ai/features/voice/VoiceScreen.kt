@@ -1,6 +1,7 @@
 package com.zara.ai.features.voice
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -49,6 +50,7 @@ import com.zara.ai.core.designsystem.theme.ZaraSecondaryAccent
 import com.zara.ai.core.designsystem.theme.ZaraSurfaceVariant
 import com.zara.ai.core.designsystem.theme.ZaraTextPrimary
 import com.zara.ai.core.designsystem.theme.ZaraTextSecondary
+import com.zara.ai.core.voice.model.VoiceLanguage
 
 @Composable
 fun VoiceScreen(
@@ -88,38 +90,75 @@ fun VoiceScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // Live Status Indicator Chip
-            Row(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(ZaraSurfaceVariant)
-                    .padding(horizontal = 14.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
+            // Header: Status indicator and Multilingual selector
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Box(
+                // Live Status Indicator Chip
+                Row(
                     modifier = Modifier
-                        .size(8.dp)
-                        .background(
-                            when (uiState.state) {
-                                VoiceAssistantState.LISTENING -> ZaraElectricBlue
-                                VoiceAssistantState.PROCESSING -> ZaraSecondaryAccent
-                                VoiceAssistantState.SPEAKING -> ZaraPrimaryAccent
-                                else -> Color.Gray
-                            },
-                            shape = CircleShape
-                        )
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = uiState.state.name,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = ZaraTextPrimary,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
-                )
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(ZaraSurfaceVariant)
+                        .padding(horizontal = 14.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .background(
+                                when (uiState.state) {
+                                    VoiceAssistantState.LISTENING -> ZaraElectricBlue
+                                    VoiceAssistantState.PROCESSING -> ZaraSecondaryAccent
+                                    VoiceAssistantState.SPEAKING -> ZaraPrimaryAccent
+                                    else -> Color.Gray
+                                },
+                                shape = CircleShape
+                            )
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = uiState.state.name,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = ZaraTextPrimary,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+                }
+
+                // Multilingual Selector Chips
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(ZaraSurfaceVariant.copy(alpha = 0.6f))
+                        .padding(3.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    VoiceLanguage.values().forEach { lang ->
+                        val isSelected = uiState.selectedLanguage == lang
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (isSelected) ZaraPrimaryAccent else Color.Transparent)
+                                .clickable { viewModel.setLanguage(lang) }
+                                .padding(horizontal = 12.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = when (lang) {
+                                    VoiceLanguage.HINDI -> "हिन्दी"
+                                    VoiceLanguage.HINGLISH -> "Hinglish"
+                                    VoiceLanguage.ENGLISH -> "English"
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (isSelected) Color.White else ZaraTextSecondary,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                            )
+                        }
+                    }
+                }
             }
 
-            // LARGE CENTERPIECE AI ORB
+            // LARGE CENTERPIECE AI ORB (Driven by Real Acoustic Amplitude)
             Box(
                 modifier = Modifier.size(240.dp),
                 contentAlignment = Alignment.Center

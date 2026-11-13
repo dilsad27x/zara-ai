@@ -101,7 +101,7 @@ class ContextManager @Inject constructor(
             val memories = mutableSetOf<String>()
 
             for (word in words.take(4)) {
-                val matches = memoryDao.searchMemories(word)
+                val matches = memoryDao.searchMemoriesSync(word)
                 for (m in matches.take(3)) {
                     memories.add("• [${m.category}] ${m.key}: ${m.value}")
                 }

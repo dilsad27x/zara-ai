@@ -25,6 +25,9 @@ interface MemoryDao {
     @Query("SELECT * FROM memories WHERE `key` LIKE '%' || :query || '%' OR `value` LIKE '%' || :query || '%'")
     fun searchMemories(query: String): Flow<List<MemoryEntity>>
 
+    @Query("SELECT * FROM memories WHERE `key` LIKE '%' || :query || '%' OR `value` LIKE '%' || :query || '%' LIMIT 10")
+    suspend fun searchMemoriesSync(query: String): List<MemoryEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMemory(memory: MemoryEntity)
 

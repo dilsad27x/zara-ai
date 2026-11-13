@@ -158,7 +158,7 @@ class ZaraBuiltinTools @Inject constructor(
         ),
         execute = { args ->
             val query = args["query"]?.toString() ?: ""
-            val memories = memoryDao.searchMemories(query)
+            val memories = memoryDao.searchMemoriesSync(query)
             if (memories.isEmpty()) {
                 ToolExecutionResult(success = true, output = "No memories found matching '$query'.")
             } else {
