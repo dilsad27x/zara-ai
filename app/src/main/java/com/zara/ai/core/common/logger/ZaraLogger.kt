@@ -45,28 +45,28 @@ class ZaraLogger @Inject constructor() {
 
     fun v(tag: String, message: String) {
         if (!isLoggingActive) return
-        Log.v(tag, message)
+        safeLog { Log.v(tag, message) }
         appendEntry(LogLevel.VERBOSE, tag, message)
     }
 
     fun d(tag: String, message: String) {
         if (!isLoggingActive) return
-        Log.d(tag, message)
+        safeLog { Log.d(tag, message) }
         appendEntry(LogLevel.DEBUG, tag, message)
     }
 
     fun i(tag: String, message: String) {
-        Log.i(tag, message)
+        safeLog { Log.i(tag, message) }
         appendEntry(LogLevel.INFO, tag, message)
     }
 
     fun w(tag: String, message: String, throwable: Throwable? = null) {
-        Log.w(tag, message, throwable)
+        safeLog { Log.w(tag, message, throwable) }
         appendEntry(LogLevel.WARN, tag, message, throwable)
     }
 
     fun e(tag: String, message: String, throwable: Throwable? = null) {
-        Log.e(tag, message, throwable)
+        safeLog { Log.e(tag, message, throwable) }
         appendEntry(LogLevel.ERROR, tag, message, throwable)
     }
 
@@ -74,8 +74,16 @@ class ZaraLogger @Inject constructor() {
      * Special log level specifically for AI agent chain-of-thought and actions.
      */
     fun agent(tag: String, message: String) {
-        Log.i("ZARA_AGENT/$tag", message)
+        safeLog { Log.i("ZARA_AGENT/$tag", message) }
         appendEntry(LogLevel.AGENT, tag, message)
+    }
+
+    private inline fun safeLog(action: () -> Unit) {
+        try {
+            action()
+        } catch (_: Throwable) {
+            // JVM unit test environment where android.util.Log is not mocked
+        }
     }
 
     private fun appendEntry(level: LogLevel, tag: String, message: String, throwable: Throwable? = null) {
