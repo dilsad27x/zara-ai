@@ -7,6 +7,9 @@ on:
     branches: [ "main", "master" ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -33,8 +36,23 @@ jobs:
     - name: Build Debug APK
       run: ./gradlew assembleDebug --no-daemon
 
-    - name: Upload Debug APK
+    - name: Upload Debug APK Artifact
       uses: actions/upload-artifact@v4
       with:
         name: ZaraAI-Debug-APK
         path: app/build/outputs/apk/debug/app-debug.apk
+
+    - name: Create Release and Upload Direct APK Asset
+      if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: v0.1.0-debug
+        name: ZARA AI v0.1.0 Debug Build
+        body: |
+          Automated CI Build for ZARA AI
+          - Native Android Jetpack Compose + Material 3
+          - Part 01 Foundation (Hilt, Room, DataStore, Security)
+          - Part 02 Premium Futuristic UI (10 Screens, Multi-state Orb, Floating Assistant)
+        files: app/build/outputs/apk/debug/app-debug.apk
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
