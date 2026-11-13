@@ -2,6 +2,8 @@ package com.zara.ai.features.chat
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.zara.ai.ai.engine.gateway.AIGateway
+import com.zara.ai.ai.engine.gateway.GatewayEvent
 import com.zara.ai.core.common.dispatcher.Dispatcher
 import com.zara.ai.core.common.dispatcher.ZaraDispatchers
 import com.zara.ai.core.common.logger.ZaraLogger
@@ -15,13 +17,11 @@ import com.zara.ai.core.network.model.NetworkStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -29,6 +29,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class ChatViewModel @Inject constructor(
+    private val aiGateway: AIGateway,
     private val conversationDao: ConversationDao,
     private val messageDao: MessageDao,
     private val connectivityObserver: NetworkConnectivityObserver,
@@ -44,6 +45,9 @@ class ChatViewModel @Inject constructor(
 
     private val _streamingMessageText = MutableStateFlow("")
     val streamingMessageText: StateFlow<String> = _streamingMessageText.asStateFlow()
+
+    private val _toolExecutionStatus = MutableStateFlow<String?>(null)
+    val toolExecutionStatus: StateFlow<String?> = _toolExecutionStatus.asStateFlow()
 
     private val _networkStatus = MutableStateFlow<NetworkStatus>(NetworkStatus.Available)
     val networkStatus: StateFlow<NetworkStatus> = _networkStatus.asStateFlow()
@@ -86,7 +90,7 @@ class ChatViewModel @Inject constructor(
                         id = UUID.randomUUID().toString(),
                         conversationId = "default_chat",
                         role = MessageRole.ASSISTANT,
-                        content = "Greetings. I am ZARA, your native autonomous intelligence.\n\nYou can issue commands, ask for code, or explore device integrations. Try asking me:\n```kotlin\nval agent = ZaraAI.initialize()\nagent.execute(goal = \"Build landing page\")\n```"
+                        content = "Greetings. I am ZARA, your sovereign AI intelligence engine connected to Google Gemini.\n\nI support English, Hindi (हिन्दी), and Hinglish naturally. Ask me questions, request device telemetry, manage audio volume, or plan autonomous tasks."
                     )
                 )
             }
@@ -122,7 +126,7 @@ class ChatViewModel @Inject constructor(
             )
             messageDao.insertMessage(userMsg)
 
-            // Stream response
+            // Stream response through AIGateway
             streamAssistantResponse(text, convId)
         }
     }
@@ -142,29 +146,65 @@ class ChatViewModel @Inject constructor(
         activeGenerationJob = viewModelScope.launch(ioDispatcher) {
             _isGenerating.value = true
             _streamingMessageText.value = ""
+            _toolExecutionStatus.value = null
 
-            val fullResponse = generateIntelligentResponse(prompt)
-            val chunks = fullResponse.split(" ")
+            val accumulated = StringBuilder()
 
-            val stringBuilder = StringBuilder()
-            for (chunk in chunks) {
-                stringBuilder.append(chunk).append(" ")
-                _streamingMessageText.value = stringBuilder.toString()
-                delay(40) // Realistic token stream cadence
-            }
-
-            // Commit complete response to Room DB
-            messageDao.insertMessage(
-                MessageEntity(
-                    id = UUID.randomUUID().toString(),
-                    conversationId = conversationId,
-                    role = MessageRole.ASSISTANT,
-                    content = fullResponse
+            try {
+                aiGateway.processConversationStream(conversationId, prompt).collect { event ->
+                    when (event) {
+                        is GatewayEvent.TextChunk -> {
+                            accumulated.append(event.text)
+                            _streamingMessageText.value = accumulated.toString()
+                        }
+                        is GatewayEvent.ToolExecuting -> {
+                            _toolExecutionStatus.value = "Executing tool: ${event.toolName}..."
+                        }
+                        is GatewayEvent.ToolCompleted -> {
+                            _toolExecutionStatus.value = null
+                        }
+                        is GatewayEvent.Finished -> {
+                            val finalText = accumulated.toString()
+                            if (finalText.isNotBlank()) {
+                                messageDao.insertMessage(
+                                    MessageEntity(
+                                        id = UUID.randomUUID().toString(),
+                                        conversationId = conversationId,
+                                        role = MessageRole.ASSISTANT,
+                                        content = finalText,
+                                        tokenCount = event.tokenUsage?.totalTokens ?: 0
+                                    )
+                                )
+                            }
+                            _streamingMessageText.value = ""
+                            _toolExecutionStatus.value = null
+                            _isGenerating.value = false
+                        }
+                        is GatewayEvent.Error -> {
+                            accumulated.append("\n\n⚠️ ${event.message}")
+                            _streamingMessageText.value = accumulated.toString()
+                            _toolExecutionStatus.value = null
+                            _isGenerating.value = false
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                logger.e("ChatViewModel", "Streaming error", e)
+                val fallbackText = accumulated.toString().ifBlank {
+                    "⚠️ Connection to Gemini API failed: ${e.localizedMessage ?: "Unknown error"}. Please verify your API key in Settings."
+                }
+                messageDao.insertMessage(
+                    MessageEntity(
+                        id = UUID.randomUUID().toString(),
+                        conversationId = conversationId,
+                        role = MessageRole.ASSISTANT,
+                        content = fallbackText
+                    )
                 )
-            )
-
-            _streamingMessageText.value = ""
-            _isGenerating.value = false
+                _streamingMessageText.value = ""
+                _toolExecutionStatus.value = null
+                _isGenerating.value = false
+            }
         }
     }
 
@@ -184,23 +224,7 @@ class ChatViewModel @Inject constructor(
             }
         }
         _streamingMessageText.value = ""
+        _toolExecutionStatus.value = null
         _isGenerating.value = false
-    }
-
-    private fun generateIntelligentResponse(input: String): String {
-        val query = input.lowercase()
-        return when {
-            "website" in query || "forge" in query ->
-                "### Website Forge Autonomous Routine\n\nI have initialized the Website Forge generator for your request:\n```html\n<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\">\n  <title>ZARA AI Portal</title>\n</head>\n<body style=\"background:#080810;color:#FFF;\">\n  <h1>Autonomous Mobile Platform</h1>\n</body>\n</html>\n```\nYou can inspect this in the **Website Forge** dashboard."
-
-            "device" in query || "battery" in query || "volume" in query ->
-                "### Device Control Status\n\nAndroid hardware bridge is actively monitoring telemetry. Current streams are mapped to Android system services:\n- **AudioManager**: Audio volume sync\n- **BatteryManager**: Voltage and charging states\n- **Clipboard**: Direct clipboard bridge"
-
-            "task" in query || "agent" in query ->
-                "### Autonomous Agent Subsystem\n\nAgent engine is loaded with **TaskPlanner** and **ToolRegistry**. Tasks persist in Room database with state rollback capabilities."
-
-            else ->
-                "### Intelligence Synthesis\n\nI have processed your instruction: **\"$input\"**.\n\nAll session events are saved to the persistent Room database under conversation ID `${_activeConversationId.value}`."
-        }
     }
 }

@@ -93,6 +93,7 @@ fun ChatScreen(
     val messages by viewModel.messages.collectAsState()
     val isGenerating by viewModel.isGenerating.collectAsState()
     val streamingText by viewModel.streamingMessageText.collectAsState()
+    val toolStatus by viewModel.toolExecutionStatus.collectAsState()
     val networkStatus by viewModel.networkStatus.collectAsState()
     val allConversations by viewModel.allConversations.collectAsState()
 
@@ -235,6 +236,39 @@ fun ChatScreen(
                 if (isGenerating && streamingText.isNotEmpty()) {
                     item {
                         AssistantStreamingBubble(text = streamingText)
+                    }
+                }
+            }
+
+            // Active Tool Execution Status Indicator
+            if (toolStatus != null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 2.dp),
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(ZaraPrimaryAccent.copy(alpha = 0.15f))
+                            .border(1.dp, ZaraPrimaryAccent.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
+                            .padding(horizontal = 12.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Refresh,
+                            contentDescription = "Tool Executing",
+                            tint = ZaraPrimaryAccent,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = toolStatus ?: "",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = ZaraPrimaryAccent,
+                            fontWeight = FontWeight.Medium
+                        )
                     }
                 }
             }

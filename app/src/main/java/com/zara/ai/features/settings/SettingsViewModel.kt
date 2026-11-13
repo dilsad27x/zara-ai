@@ -9,6 +9,7 @@ import com.zara.ai.core.designsystem.theme.ThemeMode
 import com.zara.ai.core.security.SecurityManager
 import com.zara.ai.core.security.biometric.BiometricAuthManager
 import com.zara.ai.core.security.biometric.BiometricStatus
+import com.zara.ai.ai.engine.router.ModelRouter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -21,7 +22,7 @@ import javax.inject.Inject
 data class SettingsUiState(
     val selectedLanguage: String = "English (US)",
     val selectedVoiceModel: String = "Aura Neural HD",
-    val aiProvider: String = "Gemini 2.5 Hybrid Cloud",
+    val aiProvider: String = "Google Gemini (gemini-1.5-flash)",
     val streamingSpeedMs: Int = 40,
     val isAutoTitleEnabled: Boolean = true,
     val isBiometricLockEnabled: Boolean = false,
@@ -37,7 +38,8 @@ data class SettingsUiState(
 class SettingsViewModel @Inject constructor(
     private val themeManager: ThemeManager,
     private val securityManager: SecurityManager,
-    private val biometricAuthManager: BiometricAuthManager
+    private val biometricAuthManager: BiometricAuthManager,
+    private val modelRouter: ModelRouter
 ) : ViewModel() {
 
     val themeConfig: StateFlow<ThemeConfig> = themeManager.themeConfig
@@ -58,9 +60,11 @@ class SettingsViewModel @Inject constructor(
         } else {
             "Hardware Keystore Protected"
         }
+        val activeModel = modelRouter.selectedModel.value
         _uiState.value = _uiState.value.copy(
             biometricStatus = bioStatus,
-            apiKeyMasked = masked
+            apiKeyMasked = masked,
+            aiProvider = "Google Gemini ($activeModel)"
         )
     }
 
@@ -86,6 +90,11 @@ class SettingsViewModel @Inject constructor(
 
     fun setAiProvider(provider: String) {
         _uiState.value = _uiState.value.copy(aiProvider = provider)
+    }
+
+    fun setAiModel(model: String) {
+        modelRouter.setModel(model)
+        _uiState.value = _uiState.value.copy(aiProvider = "Google Gemini ($model)")
     }
 
     fun toggleBiometricLock() {

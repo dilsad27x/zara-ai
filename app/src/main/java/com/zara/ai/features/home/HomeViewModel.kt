@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.zara.ai.ai.android.AndroidSystemBridge
 import com.zara.ai.ai.android.model.DeviceMetrics
+import com.zara.ai.ai.engine.gateway.AIGateway
+import com.zara.ai.ai.engine.router.ModelRouter
 import com.zara.ai.core.common.logger.ZaraLogger
 import com.zara.ai.core.database.dao.AgentTaskDao
 import com.zara.ai.core.database.dao.ConversationDao
@@ -31,18 +33,20 @@ data class HomeUiState(
     val greeting: String = "",
     val deviceMetrics: DeviceMetrics? = null,
     val networkStatus: NetworkStatus = NetworkStatus.Available,
-    val aiProviderName: String = "Gemini 2.5 Hybrid",
+    val aiProviderName: String = "Google Gemini (gemini-1.5-flash)",
     val orbState: OrbState = OrbState.IDLE,
     val quickActions: List<String> = listOf(
-        "Analyze daily schedule & tasks",
+        "ZARA, phone ka battery aur RAM status batao",
         "Inspect Android device telemetry",
-        "Generate responsive website draft",
+        "Save memory: My favorite programming language is Kotlin",
         "Summarize active knowledge memories"
     )
 )
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
+    private val aiGateway: AIGateway,
+    private val modelRouter: ModelRouter,
     private val conversationDao: ConversationDao,
     private val messageDao: MessageDao,
     private val agentTaskDao: AgentTaskDao,
@@ -65,6 +69,7 @@ class HomeViewModel @Inject constructor(
     init {
         loadMetrics()
         observeNetwork()
+        observeAiEngine()
     }
 
     private fun computeGreeting(): String {
@@ -92,8 +97,22 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             connectivityObserver.observe().collect { status ->
                 _uiState.value = _uiState.value.copy(
-                    networkStatus = status,
-                    orbState = if (status.isConnected) OrbState.IDLE else OrbState.PAUSED
+                    networkStatus = status
+                )
+            }
+        }
+    }
+
+    private fun observeAiEngine() {
+        viewModelScope.launch {
+            aiGateway.engineOrbState.collect { orbState ->
+                _uiState.value = _uiState.value.copy(orbState = orbState)
+            }
+        }
+        viewModelScope.launch {
+            modelRouter.selectedModel.collect { modelName ->
+                _uiState.value = _uiState.value.copy(
+                    aiProviderName = "Google Gemini ($modelName)"
                 )
             }
         }

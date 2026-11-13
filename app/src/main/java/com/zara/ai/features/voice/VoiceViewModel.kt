@@ -2,6 +2,7 @@ package com.zara.ai.features.voice
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.zara.ai.ai.engine.gateway.AIGateway
 import com.zara.ai.core.designsystem.components.OrbState
 import com.zara.ai.core.permissions.PermissionManager
 import com.zara.ai.core.permissions.model.ZaraPermission
@@ -35,7 +36,8 @@ data class VoiceUiState(
 
 @HiltViewModel
 class VoiceViewModel @Inject constructor(
-    private val permissionManager: PermissionManager
+    private val permissionManager: PermissionManager,
+    private val aiGateway: AIGateway
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(VoiceUiState())
@@ -101,24 +103,31 @@ class VoiceViewModel @Inject constructor(
                 simulatedAudioLevel = 0.65f
             )
 
-            delay(2800)
+            delay(2200)
 
-            // 2. Processing phase
+            // 2. Processing phase with real AI query
+            val query = "What is the system status and available memory?"
             _uiState.value = _uiState.value.copy(
                 state = VoiceAssistantState.PROCESSING,
                 orbState = OrbState.PROCESSING,
-                userTranscript = "\"What are the active autonomous tasks?\"",
+                userTranscript = "\"$query\"",
                 assistantTranscript = "Synthesizing response...",
                 simulatedAudioLevel = 0.0f
             )
 
-            delay(1200)
+            val aiResponse = aiGateway.queryDirect(
+                prompt = query,
+                systemInstruction = "You are ZARA Voice Assistant. Provide a concise, clear spoken response (maximum 2 sentences) in the user's language."
+            )
+
+            val spokenText = aiResponse.getOrNull()?.text?.ifBlank { null }
+                ?: "All systems are operational. The agent engine and memory database are active."
 
             // 3. Speaking phase
             _uiState.value = _uiState.value.copy(
                 state = VoiceAssistantState.SPEAKING,
                 orbState = OrbState.SPEAKING,
-                assistantTranscript = "All systems are operational. The agent engine and memory database are active.",
+                assistantTranscript = spokenText,
                 simulatedAudioLevel = 0.85f
             )
 

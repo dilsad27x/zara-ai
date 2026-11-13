@@ -126,6 +126,10 @@ dependencies {
     // Logging
     implementation(libs.timber)
 
+    // Networking
+    implementation(libs.okhttp)
+    implementation(libs.okhttp.logging)
+
     // Testing
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
