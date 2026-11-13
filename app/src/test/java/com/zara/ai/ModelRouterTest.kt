@@ -29,7 +29,7 @@ class ModelRouterTest {
                 Result.success(AIResponse(text = "ok", finishReason = "STOP"))
             override fun streamChat(request: AIRequest): Flow<AIStreamChunk> = emptyFlow()
             override suspend fun checkHealth(): ProviderHealth =
-                ProviderHealth(isHealthy = true, latencyMs = 10L)
+                ProviderHealth(providerName = "Google Gemini", isAvailable = true, latencyMs = 10L)
         }
         providerRegistry = AIProviderRegistry(fakeProvider, logger)
         modelRouter = ModelRouter(providerRegistry, logger)

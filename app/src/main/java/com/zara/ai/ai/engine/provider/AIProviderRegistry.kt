@@ -10,17 +10,20 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class AIProviderRegistry @Inject constructor(
-    geminiProvider: GeminiProvider,
+class AIProviderRegistry(
+    initialProvider: AIProvider,
     private val logger: ZaraLogger
 ) {
     private val providers = ConcurrentHashMap<String, AIProvider>()
-    private val _activeProviderName = MutableStateFlow(geminiProvider.name)
+    private val _activeProviderName = MutableStateFlow(initialProvider.name)
     val activeProviderName: StateFlow<String> = _activeProviderName.asStateFlow()
 
     init {
-        register(geminiProvider)
+        register(initialProvider)
     }
+
+    @Inject
+    constructor(geminiProvider: GeminiProvider, logger: ZaraLogger) : this(geminiProvider as AIProvider, logger)
 
     fun register(provider: AIProvider) {
         providers[provider.name] = provider
